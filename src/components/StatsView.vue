@@ -19,7 +19,10 @@ const modeLabels = {
   char: '单字',
   word: '词组',
   article: '文章',
-  wrong: '错词复习'
+  wrong: '错词复习',
+  pinyin: '拼音专项',
+  wubi: '五笔',
+  custom: '自定义'
 }
 
 // 最近 7 天练习字数柱状图

@@ -1,0 +1,19 @@
+{
+  "name": "TypePinyin 中文拼音打字练习",
+  "short_name": "TypePinyin",
+  "description": "中文拼音打字练习工具，一次敲击，一点进步",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#1e1e2e",
+  "theme_color": "#1e1e2e",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
