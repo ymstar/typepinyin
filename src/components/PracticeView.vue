@@ -6,6 +6,9 @@ import { getCharPool, getWordPool, getArticle, getArticles, shuffle } from '../d
 import { PINYIN_GROUPS, analyzePinyinError, pinyinInGroup } from '../data/pinyinGroups'
 import { reviewSuccess, reviewFail, isDue } from '../utils/review'
 import wubi86 from '../data/wubi86'
+import wubiWords from '../data/wubiWords'
+import { rootName } from '../data/wubiRoots'
+import { buildShareText, renderShareImage, modeLabel } from '../utils/share'
 
 const store = useStore()
 
@@ -18,6 +21,10 @@ const startTime = ref(null)
 const finished = ref(false)
 const elapsed = ref(0)
 const lastError = ref(null)
+const lastResult = ref(null)
+const showShare = ref(false)
+const shareImage = ref('')
+const shareCopied = ref(false)
 let timer = null
 
 const modes = [
@@ -70,6 +77,22 @@ function getPinyinFocusChars(groupId) {
   return result
 }
 
+function startSession(list) {
+  items.value = list
+  currentIndex.value = 0
+  currentInput.value = ''
+  wrongCount.value = 0
+  lastError.value = null
+  finished.value = false
+  showShare.value = false
+  startTime.value = Date.now()
+  elapsed.value = 0
+  if (timer) clearInterval(timer)
+  timer = setInterval(() => {
+    elapsed.value = Math.floor((Date.now() - startTime.value) / 1000)
+  }, 1000)
+}
+
 function buildItems() {
   let chars = []
   if (mode.value === 'char') {
@@ -92,14 +115,41 @@ function buildItems() {
   } else if (mode.value === 'pinyin') {
     chars = shuffle(getPinyinFocusChars(store.settings.pinyinGroup)).slice(0, store.settings.charCount)
   } else if (mode.value === 'wubi') {
+    if (store.settings.wubiType === 'word') {
+      const words = Object.keys(wubiWords)
+      if (words.length === 0) {
+        items.value = []
+        finished.value = true
+        if (timer) clearInterval(timer)
+        return
+      }
+      startSession(
+        shuffle(words)
+          .slice(0, 20)
+          .map((w) => ({ char: w, pinyins: [], wubiCodes: [wubiWords[w]], status: 'pending' }))
+      )
+      return
+    }
     chars = shuffle(getCharPool()).slice(0, store.settings.charCount)
   } else if (mode.value === 'custom') {
     const words = store.customWords
     if (words.length === 0) {
       chars = []
     } else {
-      const pool = words.map((w) => w.text)
-      chars = shuffle(pool).slice(0, Math.min(50, pool.length)).join('').split('')
+      const pool = shuffle(words).slice(0, Math.min(30, words.length))
+      const expanded = []
+      for (const w of pool) {
+        const customPinyins = w.pinyin ? w.pinyin.trim().split(/\s+/) : []
+        const cArr = w.text.split('')
+        cArr.forEach((c, i) => {
+          expanded.push({
+            char: c,
+            pinyins: customPinyins[i] ? [customPinyins[i]] : getPinyins(c)
+          })
+        })
+      }
+      startSession(expanded.map((e) => ({ ...e, wubiCodes: [], status: 'pending' })))
+      return
     }
   }
 
@@ -110,23 +160,14 @@ function buildItems() {
     return
   }
 
-  items.value = chars.map((c) => ({
-    char: c,
-    pinyins: getPinyins(c),
-    wubiCodes: getWubiCodes(c),
-    status: 'pending'
-  }))
-  currentIndex.value = 0
-  currentInput.value = ''
-  wrongCount.value = 0
-  lastError.value = null
-  finished.value = false
-  startTime.value = Date.now()
-  elapsed.value = 0
-  if (timer) clearInterval(timer)
-  timer = setInterval(() => {
-    elapsed.value = Math.floor((Date.now() - startTime.value) / 1000)
-  }, 1000)
+  startSession(
+    chars.map((c) => ({
+      char: c,
+      pinyins: getPinyins(c),
+      wubiCodes: getWubiCodes(c),
+      status: 'pending'
+    }))
+  )
 }
 
 function recordWrong(item) {
@@ -160,7 +201,7 @@ function finish() {
   const total = items.value.length
   const accuracy = total > 0 ? Math.round(((total - wrongCount.value) / total) * 100) : 100
   const wpm = Math.round((total / duration) * 60)
-  store.history.unshift({
+  const result = {
     id: Date.now(),
     date: new Date().toISOString(),
     mode: mode.value,
@@ -169,8 +210,10 @@ function finish() {
     wpm,
     accuracy,
     duration
-  })
+  }
+  store.history.unshift(result)
   if (store.history.length > 200) store.history = store.history.slice(0, 200)
+  lastResult.value = result
 }
 
 function onKeydown(e) {
@@ -242,6 +285,38 @@ function restart() {
   buildItems()
 }
 
+// 分享
+function openShare() {
+  if (!lastResult.value) return
+  showShare.value = true
+  shareCopied.value = false
+  shareImage.value = renderShareImage(lastResult.value)
+}
+
+async function copyShareText() {
+  if (!lastResult.value) return
+  const text = buildShareText(lastResult.value)
+  try {
+    await navigator.clipboard.writeText(text)
+  } catch (e) {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
+  }
+  shareCopied.value = true
+}
+
+function downloadShareImage() {
+  if (!shareImage.value) return
+  const a = document.createElement('a')
+  a.href = shareImage.value
+  a.download = `typepinyin-share-${Date.now()}.png`
+  a.click()
+}
+
 const currentItem = computed(() => items.value[currentIndex.value])
 const total = computed(() => items.value.length)
 const accuracy = computed(() => {
@@ -254,9 +329,18 @@ const wpm = computed(() => {
 })
 const hasWrongWords = computed(() => store.wrongWords.length > 0)
 const hasCustomWords = computed(() => store.customWords.length > 0)
-const currentModeLabel = computed(() => {
-  const m = modes.find((x) => x.value === mode.value)
-  return m ? m.label : mode.value
+const currentModeLabel = computed(() => modeLabel(mode.value))
+
+// 五笔字根提示（单字模式）
+const wubiRootsHint = computed(() => {
+  if (!isWubiMode.value || store.settings.wubiType !== 'char') return ''
+  const item = currentItem.value
+  if (!item || !item.wubiCodes || item.wubiCodes.length === 0) return ''
+  const full = item.wubiCodes[item.wubiCodes.length - 1]
+  return full
+    .split('')
+    .map((k) => `${k}·${rootName(k)}`)
+    .join('  ')
 })
 
 const emptyText = computed(() => {
@@ -313,6 +397,13 @@ onUnmounted(() => {
       </select>
     </div>
 
+    <div v-if="mode === 'wubi'" class="mode-extra">
+      <select v-model="store.settings.wubiType" @change="buildItems">
+        <option value="char">单字</option>
+        <option value="word">词组</option>
+      </select>
+    </div>
+
     <div v-if="finished && items.length === 0" class="empty">
       {{ emptyText }}
     </div>
@@ -335,6 +426,7 @@ onUnmounted(() => {
             {{ currentItem.pinyins[0] }}
           </span>
         </div>
+        <div v-if="wubiRootsHint" class="roots-hint">{{ wubiRootsHint }}</div>
         <div v-if="lastError" class="error-tip">
           <template v-if="lastError.analysis">
             <span class="err-badge">{{ lastError.analysis.group.name }}</span>
@@ -352,7 +444,7 @@ onUnmounted(() => {
           <div>进度 <b>{{ currentIndex }}/{{ total }}</b></div>
         </div>
         <div class="tip">
-          {{ isWubiMode ? '输入五笔编码（86 版，最多 4 码）' : '请切换到英文输入法，输入拼音（不带声调）' }} · 点击区域可重新开始
+          {{ isWubiMode ? (store.settings.wubiType === 'word' ? '输入词组五笔编码（86 版，4 码）' : '输入五笔编码（86 版，最多 4 码）') : '请切换到英文输入法，输入拼音（不带声调）' }} · 点击区域可重新开始
         </div>
       </div>
 
@@ -376,7 +468,20 @@ onUnmounted(() => {
             <div class="label">打错字数</div>
           </div>
         </div>
-        <button class="btn-primary" @click="restart">再来一次</button>
+        <div class="result-actions">
+          <button class="btn-primary" @click="restart">再来一次</button>
+          <button class="btn-ghost" @click="openShare">分享成绩</button>
+        </div>
+
+        <div v-if="showShare" class="share-panel">
+          <img :src="shareImage" alt="分享卡片" class="share-img" />
+          <div class="share-actions">
+            <button class="btn-ghost" @click="copyShareText">
+              {{ shareCopied ? '已复制' : '复制文案' }}
+            </button>
+            <button class="btn-ghost" @click="downloadShareImage">下载图片</button>
+          </div>
+        </div>
       </div>
     </template>
   </div>

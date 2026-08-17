@@ -13,6 +13,7 @@ const defaultData = {
     charCount: 50,
     pinyinGroup: 'all', // 拼音专项分组
     wubiHint: true, // 五笔模式显示编码长度提示
+    wubiType: 'char', // 五笔模式：char 单字 | word 词组
     reviewEnabled: true // 记忆曲线复习
   }
 }
@@ -60,20 +61,31 @@ export function resetAllData() {
 }
 
 // 自定义词库管理
+// 支持多种输入格式：
+//   - 字符串数组：["你好", "世界"]
+//   - 对象数组：[{ text: "你好", pinyin: "ni hao" }] 或 [{ word: "你好", pinyin: "ni hao" }]
+//   - 对象映射：{ "你好": "ni hao", "世界": "shi jie" }
 export function addCustomWords(words) {
-  // words: [{ text, pinyin }] 或 [text, ...]
-  const list = words.map((w) => {
-    if (typeof w === 'string') return { text: w, pinyin: '' }
-    return { text: String(w.text || '').trim(), pinyin: String(w.pinyin || '').trim() }
-  }).filter((w) => w.text)
+  const list = []
+  for (const w of words) {
+    if (typeof w === 'string') {
+      const t = w.trim()
+      if (t) list.push({ text: t, pinyin: '' })
+    } else if (w && typeof w === 'object') {
+      const text = String(w.text || w.word || '').trim()
+      if (text) list.push({ text, pinyin: String(w.pinyin || '').trim() })
+    }
+  }
   const existing = new Set(store.customWords.map((w) => w.text))
+  let added = 0
   for (const w of list) {
     if (!existing.has(w.text)) {
       store.customWords.push(w)
       existing.add(w.text)
+      added++
     }
   }
-  return list.length
+  return added
 }
 
 export function removeCustomWord(text) {

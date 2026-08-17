@@ -17,15 +17,23 @@ function clearData() {
   resetAllData()
 }
 
-// 解析文本为词条列表：支持 JSON（数组或 {words:[...]}）或纯文本（每行一个）
+// 解析文本为词条列表：支持 JSON 或纯文本（每行一个）
+// JSON 支持：数组 ["词"] / [{text, pinyin}] / [{word, pinyin}] / 对象映射 {"词":"拼音"} / { words: [...] }
 function parseAndAdd(text) {
   const trimmed = text.trim()
   let words
   if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
     const data = JSON.parse(trimmed)
-    if (Array.isArray(data)) words = data
-    else if (data.words && Array.isArray(data.words)) words = data.words
-    else throw new Error('JSON 需为数组或 { words: [...] } 格式')
+    if (Array.isArray(data)) {
+      words = data
+    } else if (data.words && Array.isArray(data.words)) {
+      words = data.words
+    } else if (typeof data === 'object') {
+      // 对象映射：{ "词": "拼音" }
+      words = Object.entries(data).map(([k, v]) => ({ text: k, pinyin: String(v || '') }))
+    } else {
+      throw new Error('JSON 需为数组、{ words: [...] } 或 { "词": "拼音" } 格式')
+    }
   } else {
     words = trimmed
       .split(/\r?\n/)
@@ -141,7 +149,7 @@ function onRestoreFile(e) {
 
     <div class="setting-group">
       <h3>自定义词库</h3>
-      <p class="group-desc">导入自己的词库用于「自定义」练习模式。支持 TXT（每行一个词/字）或 JSON（数组或 { words: [...] }）。</p>
+      <p class="group-desc">导入自己的词库用于「自定义」练习模式。支持 TXT（每行一个词/字）或 JSON：数组、{ words: [...] }、对象映射 { "词": "拼音" }（可指定多音字读音）。</p>
       <div class="setting-row">
         <div>
           <div class="label">从文件导入</div>
