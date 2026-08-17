@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useStore, resetAllData, addCustomWords, removeCustomWord, clearCustomWords, exportData, importData } from '../store/useStore'
+import { FINGERING_SCOPES } from '../data/fingering'
 
 const store = useStore()
 
@@ -144,6 +145,29 @@ function onRestoreFile(e) {
           step="10"
           @change="store.settings.charCount = Math.max(10, Math.min(200, Number(store.settings.charCount) || 50))"
         />
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <h3>指法练习</h3>
+      <p class="group-desc">针对不熟悉键盘指法的用户，提供键位与手指训练。</p>
+      <div class="setting-row">
+        <div>
+          <div class="label">显示指法提示</div>
+          <div class="desc">在拼音/五笔练习时，高亮下一个待按字母并提示手指</div>
+        </div>
+        <div class="switch" :class="{ on: store.settings.showFingering }" @click="toggle('showFingering')">
+          <span class="knob"></span>
+        </div>
+      </div>
+      <div class="setting-row">
+        <div>
+          <div class="label">指法练习范围</div>
+          <div class="desc">选择「指法」模式下的练习范围</div>
+        </div>
+        <select v-model="store.settings.fingeringScope">
+          <option v-for="s in FINGERING_SCOPES" :key="s.value" :value="s.value">{{ s.label }}</option>
+        </select>
       </div>
     </div>
 

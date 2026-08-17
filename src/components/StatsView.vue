@@ -22,8 +22,48 @@ const modeLabels = {
   wrong: '错词复习',
   pinyin: '拼音专项',
   wubi: '五笔',
-  custom: '自定义'
+  custom: '自定义',
+  fingering: '指法'
 }
+
+const FINGER_LABELS = {
+  pinky: '小指',
+  ring: '无名指',
+  middle: '中指',
+  index: '食指'
+}
+
+const HAND_LABELS = {
+  left: '左手',
+  right: '右手'
+}
+
+const keyStats = computed(() => {
+  const stats = store.fingeringStats?.keys || {}
+  return Object.entries(stats)
+    .map(([key, s]) => ({
+      key,
+      total: s.total,
+      wrong: s.wrong,
+      accuracy: s.total > 0 ? Math.round(((s.total - s.wrong) / s.total) * 100) : 100
+    }))
+    .sort((a, b) => b.total - a.total)
+})
+
+const fingerStats = computed(() => {
+  const stats = store.fingeringStats?.fingers || {}
+  return Object.entries(stats)
+    .map(([finger, s]) => ({
+      finger,
+      label: finger.split('_').map((part, i) => (i === 0 ? HAND_LABELS[part] : FINGER_LABELS[part])).join(''),
+      total: s.total,
+      wrong: s.wrong,
+      accuracy: s.total > 0 ? Math.round(((s.total - s.wrong) / s.total) * 100) : 100
+    }))
+    .sort((a, b) => b.total - a.total)
+})
+
+const hasFingeringStats = computed(() => keyStats.value.some((s) => s.total > 0))
 
 // 最近 7 天练习字数柱状图
 const last7 = computed(() => {
@@ -85,6 +125,30 @@ function fmtDate(iso) {
       <div v-for="d in last7" :key="d.key" class="bar-wrap">
         <div class="bar" :style="{ height: d.height + '%' }"></div>
         <div class="bar-label">{{ d.key }}</div>
+      </div>
+    </div>
+
+    <h3 style="font-size: 15px; margin-bottom: 12px">指法统计</h3>
+    <div v-if="!hasFingeringStats" class="empty">还没有指法练习数据</div>
+    <div v-else>
+      <h4 style="font-size: 13px; margin: 16px 0 8px; color: var(--text-dim)">按字母</h4>
+      <div class="fingering-grid">
+        <div v-for="s in keyStats" :key="s.key" class="fingering-item" :class="{ weak: s.accuracy < 80 }">
+          <div class="fingering-key">{{ s.key.toUpperCase() }}</div>
+          <div class="fingering-num">{{ s.accuracy }}%</div>
+          <div class="fingering-sub">{{ s.total }} 次</div>
+        </div>
+      </div>
+
+      <h4 style="font-size: 13px; margin: 16px 0 8px; color: var(--text-dim)">按手指</h4>
+      <div class="fingering-list">
+        <div v-for="s in fingerStats" :key="s.finger" class="fingering-row">
+          <span class="fingering-label">{{ s.label }}</span>
+          <div class="fingering-bar-wrap">
+            <div class="fingering-bar" :style="{ width: s.accuracy + '%' }"></div>
+          </div>
+          <span class="fingering-value">{{ s.accuracy }}%</span>
+        </div>
       </div>
     </div>
 

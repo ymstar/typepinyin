@@ -1,4 +1,5 @@
 import { reactive, watch } from 'vue'
+import { createDefaultFingeringStats } from '../data/fingering'
 
 const STORAGE_KEY = 'typepinyin-data-v1'
 
@@ -6,15 +7,18 @@ const defaultData = {
   wrongWords: [], // { text, pinyin, count, lastWrong, repetitions, interval, easeFactor, dueDate }
   history: [], // { id, date, mode, total, wrong, wpm, accuracy, duration }
   customWords: [], // 自定义词库 [{ text, pinyin }]
+  fingeringStats: null, // 由 createDefaultFingeringStats() 生成
   settings: {
     showPinyin: true,
-    mode: 'char', // char | word | article | wrong | pinyin | wubi | custom
+    mode: 'char', // char | word | article | wrong | pinyin | wubi | custom | fingering
     articleIndex: 0,
     charCount: 50,
     pinyinGroup: 'all', // 拼音专项分组
     wubiHint: true, // 五笔模式显示编码长度提示
     wubiType: 'char', // 五笔模式：char 单字 | word 词组
-    reviewEnabled: true // 记忆曲线复习
+    reviewEnabled: true, // 记忆曲线复习
+    fingeringScope: 'home', // 指法练习范围
+    showFingering: false // 是否在拼音/五笔模式下显示指法提示
   }
 }
 
@@ -27,13 +31,17 @@ function load() {
         ...defaultData,
         ...data,
         customWords: data.customWords || [],
+        fingeringStats: data.fingeringStats || createDefaultFingeringStats(),
         settings: { ...defaultData.settings, ...(data.settings || {}) }
       }
     }
   } catch (e) {
     // ignore
   }
-  return JSON.parse(JSON.stringify(defaultData))
+  return {
+    ...JSON.parse(JSON.stringify(defaultData)),
+    fingeringStats: createDefaultFingeringStats()
+  }
 }
 
 const store = reactive(load())
@@ -106,6 +114,7 @@ export function exportData() {
       wrongWords: store.wrongWords,
       history: store.history,
       customWords: store.customWords,
+      fingeringStats: store.fingeringStats,
       settings: store.settings
     },
     null,
@@ -120,6 +129,9 @@ export function importData(jsonStr) {
   if (Array.isArray(data.wrongWords)) store.wrongWords = data.wrongWords
   if (Array.isArray(data.history)) store.history = data.history
   if (Array.isArray(data.customWords)) store.customWords = data.customWords
+  if (data.fingeringStats && typeof data.fingeringStats === 'object') {
+    store.fingeringStats = data.fingeringStats
+  }
   if (data.settings && typeof data.settings === 'object') {
     store.settings = { ...store.settings, ...data.settings }
   }

@@ -749,3 +749,153 @@ input:focus {
   flex-wrap: wrap;
   justify-content: center;
 }
+
+/* 虚拟键盘 */
+.keyboard {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.keyboard-row {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+
+.keyboard-key {
+  min-width: 44px;
+  height: 48px;
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 600;
+  border: 1px solid var(--surface-2);
+  user-select: none;
+  transition: all 0.15s;
+}
+
+.keyboard-key.hand-left {
+  border-bottom: 4px solid var(--accent-2);
+}
+
+.keyboard-key.hand-right {
+  border-bottom: 4px solid var(--warn);
+}
+
+.keyboard-key.target {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(166, 227, 161, 0.35);
+  transform: translateY(-2px);
+}
+
+.keyboard-hint {
+  text-align: center;
+  margin-top: 10px;
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+.keyboard-hint strong {
+  color: var(--accent);
+}
+
+/* 指法统计 */
+.fingering-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 8px;
+}
+
+.fingering-item {
+  background: var(--surface);
+  border-radius: 10px;
+  padding: 10px 6px;
+  text-align: center;
+}
+
+.fingering-item.weak {
+  border: 1px solid var(--danger);
+}
+
+.fingering-key {
+  font-size: 18px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--text);
+}
+
+.fingering-num {
+  font-size: 13px;
+  color: var(--accent);
+  margin-top: 4px;
+}
+
+.fingering-sub {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.fingering-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fingering-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+
+.fingering-label {
+  width: 80px;
+  font-size: 13px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.fingering-bar-wrap {
+  flex: 1;
+  height: 8px;
+  background: var(--surface-2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.fingering-bar {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 0.3s;
+}
+
+.fingering-value {
+  width: 44px;
+  text-align: right;
+  font-size: 13px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .keyboard-key {
+    min-width: 30px;
+    height: 38px;
+    font-size: 12px;
+  }
+}
+

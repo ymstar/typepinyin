@@ -9,6 +9,13 @@ import wubi86 from '../data/wubi86'
 import wubiWords from '../data/wubiWords'
 import { rootName } from '../data/wubiRoots'
 import { buildShareText, renderShareImage, modeLabel } from '../utils/share'
+import VirtualKeyboard from './VirtualKeyboard.vue'
+import {
+  FINGERING_SCOPES,
+  getFingeringKeys,
+  getKeyMeta,
+  nextExpectedChar
+} from '../data/fingering'
 
 const store = useStore()
 
@@ -34,12 +41,14 @@ const modes = [
   { value: 'wrong', label: '错词复习' },
   { value: 'pinyin', label: '拼音专项' },
   { value: 'wubi', label: '五笔' },
-  { value: 'custom', label: '自定义' }
+  { value: 'custom', label: '自定义' },
+  { value: 'fingering', label: '指法' }
 ]
 
 const articles = getArticles()
 const isWubiMode = computed(() => mode.value === 'wubi')
-const isPinyinInput = computed(() => !isWubiMode.value)
+const isFingeringMode = computed(() => mode.value === 'fingering')
+const isPinyinInput = computed(() => !isWubiMode.value && !isFingeringMode.value)
 
 function getPinyins(char) {
   try {
@@ -151,6 +160,22 @@ function buildItems() {
       startSession(expanded.map((e) => ({ ...e, wubiCodes: [], status: 'pending' })))
       return
     }
+  } else if (mode.value === 'fingering') {
+    const keys = getFingeringKeys(store.settings.fingeringScope)
+    const pool = shuffle(keys).slice(0, store.settings.charCount)
+    startSession(
+      pool.map((char) => {
+        const meta = getKeyMeta(char)
+        return {
+          char,
+          pinyins: [],
+          wubiCodes: [],
+          status: 'pending',
+          ...meta
+        }
+      })
+    )
+    return
   }
 
   if (chars.length === 0) {
@@ -184,6 +209,23 @@ function recordWrong(item) {
       lastWrong: Date.now(),
       ...(store.settings.reviewEnabled ? reviewFail() : {})
     })
+  }
+}
+
+function recordFingeringStats(item, isWrong) {
+  if (!item || !item.hand || !item.finger) return
+  const fingerKey = `${item.hand}_${item.finger}`
+  if (!store.fingeringStats.keys[item.char]) {
+    store.fingeringStats.keys[item.char] = { total: 0, wrong: 0 }
+  }
+  if (!store.fingeringStats.fingers[fingerKey]) {
+    store.fingeringStats.fingers[fingerKey] = { total: 0, wrong: 0 }
+  }
+  store.fingeringStats.keys[item.char].total++
+  store.fingeringStats.fingers[fingerKey].total++
+  if (isWrong) {
+    store.fingeringStats.keys[item.char].wrong++
+    store.fingeringStats.fingers[fingerKey].wrong++
   }
 }
 
@@ -228,6 +270,25 @@ function onKeydown(e) {
     const item = items.value[currentIndex.value]
     if (!item) return
     const newInput = currentInput.value + ch
+
+    if (isFingeringMode.value) {
+      const correct = ch === item.char
+      recordFingeringStats(item, !correct)
+      if (correct) {
+        item.status = 'correct'
+        currentInput.value = ''
+        lastError.value = null
+        currentIndex.value++
+        if (currentIndex.value >= items.value.length) finish()
+      } else {
+        if (item.status !== 'wrong') {
+          item.status = 'wrong'
+          wrongCount.value++
+        }
+        lastError.value = { correct: item.char, wrong: ch, analysis: null }
+      }
+      return
+    }
 
     if (isWubiMode.value) {
       const matched = item.wubiCodes.some((c) => c === newInput)
@@ -343,6 +404,19 @@ const wubiRootsHint = computed(() => {
     .join('  ')
 })
 
+const keyboardTarget = computed(() => {
+  const item = currentItem.value
+  if (!item) return ''
+  if (isFingeringMode.value) return item.char
+  if (!store.settings.showFingering) return ''
+  return nextExpectedChar(item, currentInput.value)
+})
+
+const keyboardHint = computed(() => {
+  if (!keyboardTarget.value) return null
+  return getKeyMeta(keyboardTarget.value)
+})
+
 const emptyText = computed(() => {
   if (mode.value === 'wrong') {
     if (!hasWrongWords.value) return '错词本还是空的，先去练习打错几个字吧'
@@ -351,6 +425,7 @@ const emptyText = computed(() => {
   }
   if (mode.value === 'custom') return '自定义词库是空的，去「设置」页导入词库吧'
   if (mode.value === 'pinyin') return '当前分组没有匹配的字，换个分组试试'
+  if (mode.value === 'fingering') return '当前范围没有键位，换个范围试试'
   return '暂无内容'
 })
 
@@ -404,6 +479,12 @@ onUnmounted(() => {
       </select>
     </div>
 
+    <div v-if="mode === 'fingering'" class="mode-extra">
+      <select v-model="store.settings.fingeringScope" @change="buildItems">
+        <option v-for="s in FINGERING_SCOPES" :key="s.value" :value="s.value">{{ s.label }}</option>
+      </select>
+    </div>
+
     <div v-if="finished && items.length === 0" class="empty">
       {{ emptyText }}
     </div>
@@ -418,7 +499,8 @@ onUnmounted(() => {
           >{{ item.char }}</span>
         </div>
         <div class="input-line">
-          <span class="current-pinyin">{{ currentInput }}</span>
+          <span v-if="isFingeringMode" class="current-pinyin">{{ currentItem?.char.toUpperCase() }}</span>
+          <span v-else class="current-pinyin">{{ currentInput }}</span>
           <span v-if="isWubiMode && currentItem && store.settings.wubiHint" class="hint">
             {{ currentItem.wubiCodes[0] ? currentItem.wubiCodes[0].length + ' 码' : '无编码' }}
           </span>
@@ -434,6 +516,7 @@ onUnmounted(() => {
           </template>
           <template v-else>
             <span v-if="isWubiMode">正确编码：{{ lastError.correct }}</span>
+            <span v-else-if="isFingeringMode">正确按键：{{ lastError.correct.toUpperCase() }}</span>
             <span v-else>正确拼音：{{ lastError.correct }}</span>
           </template>
         </div>
@@ -444,11 +527,17 @@ onUnmounted(() => {
           <div>进度 <b>{{ currentIndex }}/{{ total }}</b></div>
         </div>
         <div class="tip">
-          {{ isWubiMode ? (store.settings.wubiType === 'word' ? '输入词组五笔编码（86 版，4 码）' : '输入五笔编码（86 版，最多 4 码）') : '请切换到英文输入法，输入拼音（不带声调）' }} · 点击区域可重新开始
+          {{ isFingeringMode ? '请按高亮键位敲击对应字母，使用正确的手指' : (isWubiMode ? (store.settings.wubiType === 'word' ? '输入词组五笔编码（86 版，4 码）' : '输入五笔编码（86 版，最多 4 码）') : '请切换到英文输入法，输入拼音（不带声调）') }} · 点击区域可重新开始
         </div>
       </div>
 
-      <div v-else class="result">
+      <VirtualKeyboard
+        v-if="!finished && (isFingeringMode || store.settings.showFingering) && keyboardTarget"
+        :target="keyboardTarget"
+        :hint="keyboardHint"
+      />
+
+      <div v-if="finished" class="result">
         <h2>{{ currentModeLabel }}练习完成</h2>
         <div class="result-grid">
           <div class="result-item">

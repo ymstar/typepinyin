@@ -7,7 +7,8 @@ const MODE_LABELS = {
   wrong: '错词复习',
   pinyin: '拼音专项',
   wubi: '五笔',
-  custom: '自定义'
+  custom: '自定义',
+  fingering: '指法'
 }
 
 export function modeLabel(mode) {
